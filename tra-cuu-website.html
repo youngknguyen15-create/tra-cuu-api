@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tra cứu qua webservice bên ngoài – Thời tiết, Từ điển, Sách</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF2FA; --surface:#FFFFFF; --sunk:#E3E8F4; --ink:#1B2347; --muted:#5A6386; --line:#CCD3E6;
+  --ok:#2F7D5B; --accent:#3156C8; --warn:#A86A12; --err:#B4323A;
+  --code-bg:#1B2347; --code-ink:#E6E9F5;
+  color-scheme:light; box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#121730; --surface:#1B2245; --sunk:#151B3A; --ink:#E6E9F5; --muted:#9AA3C7; --line:#2C3566;
+    --ok:#5CC195; --accent:#7C9BFF; --warn:#E0A84A; --err:#F07178;
+    --code-bg:#0E1228; --code-ink:#DDE2F7; color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 "Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+code,pre{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+img{max-width:100%}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+
+header{margin-bottom:20px}
+h1{font-size:clamp(1.6rem,3.4vw,2.4rem);line-height:1.15;font-weight:700;margin:0;letter-spacing:-.02em;max-width:24ch}
+.lede{margin:8px 0 0;color:var(--muted);max-width:64ch}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:20px}
+.tab{font:600 .95rem "Be Vietnam Pro",sans-serif;background:none;border:0;border-bottom:3px solid transparent;color:var(--muted);padding:10px 14px;cursor:pointer;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab small{display:block;font-weight:400;font-size:.75rem;color:var(--muted)}
+
+.grid{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+form.search{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+form.search input{flex:1;min-width:180px;background:var(--sunk);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:11px 12px;font:inherit}
+.btn{font:600 .92rem "Be Vietnam Pro",sans-serif;border-radius:8px;padding:10px 18px;border:1px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+.btn:disabled{opacity:.6;cursor:progress}
+.btn.ghost{background:var(--sunk);color:var(--ink);border-color:var(--line);padding:6px 12px;font-size:.85rem}
+.hint{color:var(--muted);font-size:.88rem;margin:0 0 12px}
+.msg{padding:14px;border-radius:10px;background:var(--sunk);color:var(--muted)}
+.msg.err{color:var(--err);background:color-mix(in srgb,var(--err) 10%,var(--surface))}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{font:500 .82rem "Be Vietnam Pro",sans-serif;border:1px solid var(--line);background:var(--sunk);color:var(--ink);border-radius:999px;padding:4px 12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+span.chip{cursor:default}
+
+/* Thời tiết */
+.now{display:grid;grid-template-columns:auto 1fr;gap:6px 20px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.now .icon{font-size:3.4rem;line-height:1;grid-row:span 2}
+.now .temp{font-size:clamp(2.6rem,7vw,4rem);font-weight:700;line-height:1;letter-spacing:-.03em}
+.now .place{font-weight:600}
+.now .meta{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--muted);font-size:.9rem}
+.days{list-style:none;margin:0;padding:0}
+.days li{display:grid;grid-template-columns:7.5em 2em 1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem}
+.days li:last-child{border-bottom:0}
+.days .d{font-weight:600}
+.days .desc{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.days .rain{color:var(--accent);font-size:.85rem;min-width:3.5em;text-align:right}
+.days .range{font-variant-numeric:tabular-nums;min-width:6.5em;text-align:right}
+@media (max-width:520px){.days li{grid-template-columns:6em 1.6em 1fr auto}.days .desc{display:none}}
+
+/* Từ điển */
+.word{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.word h2{font-size:2rem;margin:0;letter-spacing:-.01em}
+.phon{color:var(--muted);font-family:"JetBrains Mono",monospace}
+.pos{margin-top:18px}
+.pos h3{font-size:.95rem;margin:0 0 6px;color:var(--accent);font-style:italic;font-weight:600}
+.pos ol{margin:0;padding-left:1.4em}
+.pos li{margin-bottom:8px;max-width:72ch}
+.ex{display:block;color:var(--muted);font-style:italic;font-size:.92rem}
+
+/* Sách */
+.books{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px}
+.book{display:flex;flex-direction:column;gap:6px;text-decoration:none;color:inherit}
+.cover{aspect-ratio:2/3;border-radius:6px;background:var(--sunk);display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--line);color:var(--muted);font-size:.8rem;text-align:center;padding:8px}
+.cover img{width:100%;height:100%;object-fit:cover}
+.book strong{font-size:.92rem;line-height:1.3}
+.book span{font-size:.8rem;color:var(--muted)}
+.book:hover strong{text-decoration:underline}
+
+/* Bảng soi request */
+.inspect h2{font-size:1rem;margin:0 0 4px}
+.inspect > p{margin:0 0 12px;color:var(--muted);font-size:.85rem}
+.req{border-top:1px solid var(--line);padding:10px 0}
+.req .top{display:flex;gap:8px;align-items:center;font-size:.82rem;flex-wrap:wrap}
+.status{font:600 .8rem "JetBrains Mono",monospace;padding:1px 7px;border-radius:5px;color:#fff;background:var(--ok)}
+.status.bad{background:var(--err)} .status.wait{background:var(--warn)}
+.req .t{color:var(--muted)}
+.req .url{display:block;font-size:.76rem;word-break:break-all;color:var(--ink);margin-top:4px}
+details{margin-top:6px}
+summary{cursor:pointer;font-size:.82rem;color:var(--accent)}
+pre.json{margin:6px 0 0;padding:10px;border-radius:8px;background:var(--code-bg);color:var(--code-ink);font-size:.74rem;line-height:1.55;max-height:300px;overflow:auto}
+.k{color:#8FB4FF}.s{color:#9FDDB8}.n{color:#F2C46D}.b{color:#F59BA8}
+.sources{margin-top:12px;font-size:.8rem;color:var(--muted)}
+.sources a{color:var(--accent)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tra cứu trực tiếp từ webservice công khai</h1>
+    <p class="lede">Mỗi lần tra, trang gửi request thật tới API bên ngoài và hiển thị kết quả. Cột bên phải cho thấy chính xác URL đã gọi, mã trạng thái, thời gian và JSON trả về.</p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Loại tra cứu">
+    <button class="tab" role="tab" id="tab-weather" aria-controls="panel-weather" aria-selected="true">Thời tiết<small>Open-Meteo</small></button>
+    <button class="tab" role="tab" id="tab-dict" aria-controls="panel-dict" aria-selected="false" tabindex="-1">Từ điển Anh–Anh<small>Free Dictionary API</small></button>
+    <button class="tab" role="tab" id="tab-books" aria-controls="panel-books" aria-selected="false" tabindex="-1">Tra sách<small>Open Library</small></button>
+  </div>
+
+  <div class="grid">
+    <main>
+      <section class="card" role="tabpanel" id="panel-weather" aria-labelledby="tab-weather">
+        <form class="search" id="f-weather">
+          <input id="q-weather" aria-label="Tên thành phố" value="Hà Nội" autocomplete="off">
+          <button class="btn" type="submit">Xem dự báo</button>
+        </form>
+        <div id="weather-places" class="chips" hidden></div>
+        <div id="out-weather" aria-live="polite"></div>
+      </section>
+
+      <section class="card" role="tabpanel" id="panel-dict" aria-labelledby="tab-dict" hidden>
+        <form class="search" id="f-dict">
+          <input id="q-dict" aria-label="Từ tiếng Anh" value="serendipity" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn" type="submit">Tra từ</button>
+        </form>
+        <p class="hint">Nhập một từ tiếng Anh. Kết quả là định nghĩa Anh–Anh, có phát âm nếu nguồn có sẵn.</p>
+        <div id="out-dict" aria-live="polite"></div>
+      </section>
+
+      <section class="card" role="tabpanel" id="panel-books" aria-labelledby="tab-books" hidden>
+        <form class="search" id="f-books">
+          <input id="q-books" aria-label="Tên sách hoặc tác giả" value="Nguyễn Du" autocomplete="off">
+          <button class="btn" type="submit">Tìm sách</button>
+        </form>
+        <p class="hint">Tìm theo tên sách, tác giả hoặc ISBN trong kho Open Library.</p>
+        <div id="out-books" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <aside class="card inspect" aria-label="Các request đã gửi">
+      <h2>Request đã gửi</h2>
+      <p>Mới nhất ở trên cùng.</p>
+      <div id="reqs"><p class="hint" id="reqs-empty">Chưa có request nào.</p></div>
+      <div class="sources">Nguồn dữ liệu: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>, <a href="https://dictionaryapi.dev" target="_blank" rel="noopener">Free Dictionary API</a>, <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>.</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  /* ---------- Gọi API + ghi lại request ---------- */
+  const highlight = json => esc(json).replace(/(&quot;(?:\\.|(?!&quot;).)*?&quot;)(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+    (m, str, colon, kw) => str ? (colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`) : kw ? `<span class="b">${m}</span>` : `<span class="n">${m}</span>`);
+
+  function logRequest(url) {
+    $("reqs-empty")?.remove();
+    const el = document.createElement("div");
+    el.className = "req";
+    el.innerHTML = `<div class="top"><span class="status wait">…</span><code>GET</code><span class="t">đang chờ</span></div><a class="url" target="_blank" rel="noopener"></a>`;
+    const a = el.querySelector(".url"); a.href = url; a.textContent = url;
+    $("reqs").prepend(el);
+    while ($("reqs").children.length > 12) $("reqs").lastElementChild.remove();
+    return (status, ms, data) => {
+      const st = el.querySelector(".status");
+      st.textContent = status; st.className = "status" + (typeof status === "number" && status < 400 ? "" : " bad");
+      el.querySelector(".t").textContent = `${ms} ms`;
+      if (data !== undefined) {
+        let txt = JSON.stringify(data, null, 2) ?? "null";
+        if (txt.length > 20000) txt = txt.slice(0, 20000) + "\n… (đã cắt bớt)";
+        const d = document.createElement("details");
+        d.innerHTML = `<summary>Xem JSON trả về</summary><pre class="json">${highlight(txt)}</pre>`;
+        el.appendChild(d);
+      }
+    };
+  }
+
+  async function getJSON(url) {
+    const done = logRequest(url);
+    const t0 = performance.now();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 12000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
+      let data = null;
+      try { data = await res.json(); } catch {}
+      done(res.status, Math.round(performance.now() - t0), data);
+      return { ok: res.ok, status: res.status, data };
+    } catch (e) {
+      done("LỖI", Math.round(performance.now() - t0), { error: String(e) });
+      throw new Error(e.name === "AbortError"
+        ? "Máy chủ API không trả lời sau 12 giây. Thử lại sau ít phút."
+        : "Không kết nối được tới API. Kiểm tra kết nối mạng; nếu đang xem trong khung xem trước có chặn mạng, hãy tải file về và mở trực tiếp bằng trình duyệt.");
+    } finally { clearTimeout(timer); }
+  }
+
+  const showMsg = (el, text, isErr) => { el.innerHTML = `<div class="msg${isErr ? " err" : ""}"></div>`; el.firstChild.textContent = text; };
+  const busy = (form, on) => { const b = form.querySelector("button"); b.disabled = on; };
+
+  /* ---------- Tab ---------- */
+  const tabs = [...document.querySelectorAll(".tab")];
+  const started = new Set();
+  function select(tab) {
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.setAttribute("aria-selected", on); t.tabIndex = on ? 0 : -1;
+      $(t.getAttribute("aria-controls")).hidden = !on;
+    });
+    const id = tab.id;
+    if (!started.has(id)) { started.add(id); ({ "tab-weather": runWeather, "tab-dict": runDict, "tab-books": runBooks })[id](); }
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener("click", () => select(t));
+    t.addEventListener("keydown", e => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+      n.focus(); select(n);
+    });
+  });
+
+  /* ---------- Thời tiết: Open-Meteo ---------- */
+  const WMO = {
+    0:["☀️","Trời quang"],1:["🌤️","Gần như quang đãng"],2:["⛅","Có mây"],3:["☁️","Nhiều mây"],
+    45:["🌫️","Sương mù"],48:["🌫️","Sương mù đóng băng"],
+    51:["🌦️","Mưa phùn nhẹ"],53:["🌦️","Mưa phùn"],55:["🌦️","Mưa phùn dày"],56:["🌧️","Mưa phùn băng"],57:["🌧️","Mưa phùn băng dày"],
+    61:["🌧️","Mưa nhỏ"],63:["🌧️","Mưa vừa"],65:["🌧️","Mưa to"],66:["🌧️","Mưa băng nhẹ"],67:["🌧️","Mưa băng"],
+    71:["🌨️","Tuyết nhẹ"],73:["🌨️","Tuyết"],75:["❄️","Tuyết dày"],77:["🌨️","Hạt tuyết"],
+    80:["🌦️","Mưa rào nhẹ"],81:["🌦️","Mưa rào"],82:["⛈️","Mưa rào rất to"],85:["🌨️","Mưa tuyết rào"],86:["🌨️","Mưa tuyết rào dày"],
+    95:["⛈️","Dông"],96:["⛈️","Dông kèm mưa đá"],99:["⛈️","Dông kèm mưa đá lớn"]
+  };
+  const wmo = c => WMO[c] || ["🌡️", "Không rõ"];
+  const dayName = (iso, i) => i === 0 ? "Hôm nay" : i === 1 ? "Ngày mai" :
+    new Date(iso + "T12:00").toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "numeric" }).replace(/^./, c => c.toUpperCase());
+
+  async function runWeather() {
+    const form = $("f-weather"), out = $("out-weather"), q = $("q-weather").value.trim();
+    if (!q) return showMsg(out, "Nhập tên một thành phố, ví dụ “Huế” hoặc “Tokyo”.");
+    busy(form, true); showMsg(out, "Đang tìm địa điểm…");
+    try {
+      const geo = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=vi&format=json`);
+      const places = geo.data?.results || [];
+      if (!places.length) { $("weather-places").hidden = true; return showMsg(out, `Không tìm thấy địa điểm nào tên “${q}”. Thử viết không dấu hoặc thêm tên nước.`); }
+      renderPlaces(places, 0);
+      await loadForecast(places[0]);
+    } catch (e) { showMsg(out, e.message, true); }
+    finally { busy(form, false); }
+  }
+
+  function renderPlaces(places, active) {
+    const box = $("weather-places");
+    box.hidden = places.length < 2;
+    box.innerHTML = "";
+    places.forEach((p, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", i === active);
+      b.textContent = [p.name, p.admin1, p.country].filter(Boolean).join(", ");
+      b.addEventListener("click", async () => {
+        [...box.children].forEach(c => c.setAttribute("aria-pressed", c === b));
+        try { await loadForecast(p); } catch (e) { showMsg($("out-weather"), e.message, true); }
+      });
+      box.appendChild(b);
+    });
+  }
+
+  async function loadForecast(p) {
+    const out = $("out-weather");
+    showMsg(out, "Đang tải dự báo…");
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
+    const r = await getJSON(url);
+    if (!r.ok || !r.data?.current) return showMsg(out, `API trả về lỗi ${r.status}: ${r.data?.reason || "không có dữ liệu dự báo"}.`, true);
+    const c = r.data.current, d = r.data.daily, [icon, desc] = wmo(c.weather_code);
+    const place = [p.name, p.admin1, p.country].filter(Boolean).join(", ");
+    out.innerHTML = `
+      <div class="now">
+        <div class="icon" aria-hidden="true">${icon}</div>
+        <div class="temp">${Math.round(c.temperature_2m)}°C</div>
+        <div><div class="place">${esc(place)}</div><div>${esc(desc)}</div></div>
+        <div class="meta">
+          <span>Cảm giác như ${Math.round(c.apparent_temperature)}°C</span>
+          <span>Độ ẩm ${c.relative_humidity_2m}%</span>
+          <span>Gió ${Math.round(c.wind_speed_10m)} km/h</span>
+          <span>Cập nhật ${esc(c.time.replace("T", " "))} (giờ địa phương)</span>
+        </div>
+      </div>
+      <ul class="days">${d.time.map((t, i) => {
+        const [ic, ds] = wmo(d.weather_code[i]);
+        const rain = d.precipitation_probability_max?.[i];
+        return `<li><span class="d">${esc(dayName(t, i))}</span><span aria-hidden="true">${ic}</span><span class="desc">${esc(ds)}</span>
+          <span class="rain">${rain == null ? "" : `💧${rain}%`}</span>
+          <span class="range">${Math.round(d.temperature_2m_min[i])}° – ${Math.round(d.temperature_2m_max[i])}°</span></li>`;
+      }).join("")}</ul>`;
+  }
+  $("f-weather").addEventListener("submit", e => { e.preventDefault(); runWeather(); });
+
+  /* ---------- Từ điển: dictionaryapi.dev ---------- */
+  let audio;
+  async function runDict() {
+    const form = $("f-dict"), out = $("out-dict"), q = $("q-dict").value.trim().toLowerCase();
+    if (!q) return showMsg(out, "Nhập một từ tiếng Anh, ví dụ “resilient”.");
+    busy(form, true); showMsg(out, "Đang tra từ…");
+    try {
+      const r = await getJSON(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(q)}`);
+      if (r.status === 404) return showMsg(out, `Từ điển không có từ “${q}”. Kiểm tra chính tả hoặc thử dạng gốc của từ (ví dụ “run” thay cho “running”).`);
+      if (!r.ok || !Array.isArray(r.data)) return showMsg(out, `API trả về lỗi ${r.status}. Thử lại sau.`, true);
+      const entries = r.data;
+      const phon = entries.flatMap(e => e.phonetics || []);
+      const text = entries[0].phonetic || phon.find(p => p.text)?.text || "";
+      const audioUrl = phon.find(p => p.audio)?.audio || "";
+      const byPos = new Map();
+      entries.forEach(e => e.meanings.forEach(m => {
+        const cur = byPos.get(m.partOfSpeech) || { defs: [], syn: new Set() };
+        cur.defs.push(...m.definitions); (m.synonyms || []).forEach(s => cur.syn.add(s));
+        byPos.set(m.partOfSpeech, cur);
+      }));
+      out.innerHTML = `
+        <div class="word"><h2>${esc(entries[0].word)}</h2>${text ? `<span class="phon">${esc(text)}</span>` : ""}
+        ${audioUrl ? `<button class="btn ghost" type="button" id="play">🔊 Nghe phát âm</button>` : ""}</div>
+        ${[...byPos].map(([pos, v]) => `
+          <div class="pos"><h3>${esc(pos)}</h3><ol>${v.defs.slice(0, 5).map(d =>
+            `<li>${esc(d.definition)}${d.example ? `<span class="ex">“${esc(d.example)}”</span>` : ""}</li>`).join("")}</ol>
+            ${v.syn.size ? `<div class="chips" style="margin-top:6px">${[...v.syn].slice(0, 8).map(s => `<button type="button" class="chip" data-word="${esc(s)}">${esc(s)}</button>`).join("")}</div>` : ""}
+          </div>`).join("")}`;
+      if (audioUrl) $("play").addEventListener("click", () => { audio?.pause(); audio = new Audio(audioUrl); audio.play().catch(() => {}); });
+      out.querySelectorAll("[data-word]").forEach(b => b.addEventListener("click", () => { $("q-dict").value = b.dataset.word; runDict(); }));
+    } catch (e) { showMsg(out, e.message, true); }
+    finally { busy(form, false); }
+  }
+  $("f-dict").addEventListener("submit", e => { e.preventDefault(); runDict(); });
+
+  /* ---------- Sách: Open Library ---------- */
+  async function runBooks() {
+    const form = $("f-books"), out = $("out-books"), q = $("q-books").value.trim();
+    if (!q) return showMsg(out, "Nhập tên sách, tác giả hoặc ISBN.");
+    busy(form, true); showMsg(out, "Đang tìm sách…");
+    try {
+      const fields = "key,title,author_name,first_publish_year,cover_i,edition_count";
+      const r = await getJSON(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=18&fields=${fields}`);
+      if (!r.ok) return showMsg(out, `API trả về lỗi ${r.status}. Thử lại sau.`, true);
+      const docs = r.data?.docs || [];
+      if (!docs.length) return showMsg(out, `Không tìm thấy sách nào cho “${q}”. Thử từ khoá ngắn hơn hoặc viết không dấu.`);
+      out.innerHTML = `<p class="hint">Tìm thấy ${r.data.numFound.toLocaleString("vi-VN")} kết quả, hiển thị ${docs.length} đầu tiên.</p>
+        <div class="books">${docs.map(b => `
+          <a class="book" href="https://openlibrary.org${esc(b.key)}" target="_blank" rel="noopener">
+            <div class="cover">${b.cover_i
+              ? `<img loading="lazy" src="https://covers.openlibrary.org/b/id/${b.cover_i}-M.jpg" alt="Bìa sách ${esc(b.title)}">`
+              : "Chưa có ảnh bìa"}</div>
+            <strong>${esc(b.title)}</strong>
+            <span>${esc((b.author_name || ["Không rõ tác giả"]).slice(0, 2).join(", "))}</span>
+            <span>${b.first_publish_year ? `Xuất bản ${b.first_publish_year}` : ""}${b.edition_count ? ` · ${b.edition_count} ấn bản` : ""}</span>
+          </a>`).join("")}</div>`;
+    } catch (e) { showMsg(out, e.message, true); }
+    finally { busy(form, false); }
+  }
+  $("f-books").addEventListener("submit", e => { e.preventDefault(); runBooks(); });
+
+  // Chạy ngay tab đầu tiên
+  select(tabs[0]);
+})();
+</script>
+</body>
+</html>
